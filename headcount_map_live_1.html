@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sri Lanka Shared Services — Global Staffing Map (Live)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#F4F6F5; --panel:#FFFFFF; --ink:#1B2A2A; --ink-soft:#5B6B6B;
+    --teal:#0F6B62; --teal-deep:#0A4B45; --amber:#D98B2B; --line:#DFE6E4; --map-bg:#EAF0EE;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;}
+  .wrap{max-width:1280px;margin:0 auto;padding:22px 22px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;
+    border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;flex-wrap:wrap;}
+  header .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);font-weight:700;margin-bottom:6px;}
+  header h1{font-size:24px;margin:0;font-weight:700;letter-spacing:-0.01em;color:var(--teal-deep);}
+  header p{margin:4px 0 0;color:var(--ink-soft);font-size:13.5px;}
+  .totals{display:flex;gap:22px;}
+  .totals .stat{text-align:right;}
+  .totals .num{font-size:26px;font-weight:800;color:var(--teal-deep);line-height:1;}
+  .totals .lab{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;}
+  .layout{display:grid;grid-template-columns: 1fr 360px;gap:18px;align-items:start;}
+  @media (max-width: 860px){ .layout{grid-template-columns:1fr;} }
+  .map-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(20,40,38,.04);}
+  #map{height:560px;width:100%;background:var(--map-bg);}
+  .map-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;
+    border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft);flex-wrap:wrap;gap:8px;}
+  .legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+    box-shadow:0 1px 2px rgba(20,40,38,.04);}
+  .card h2{font-size:13px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;color:var(--teal-deep);
+    display:flex;align-items:center;justify-content:space-between;}
+  .hint{font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
+  #detail-empty{font-size:13px;color:var(--ink-soft);}
+  #detail-body h3{margin:0;font-size:16px;color:var(--ink);}
+  #detail-body .sub{font-size:12px;color:var(--ink-soft);margin:2px 0 10px;}
+  .breakdown{display:flex;gap:8px;margin-bottom:12px;}
+  .breakdown .chip{flex:1;border-radius:9px;padding:8px 6px;background:#F0F5F3;text-align:center;}
+  .breakdown .chip b{display:block;font-size:17px;color:var(--teal-deep);}
+  .breakdown .chip span{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;}
+  table.roster{width:100%;border-collapse:collapse;font-size:12px;}
+  table.roster th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);
+    border-bottom:1px solid var(--line);padding:5px 4px;}
+  table.roster td{padding:6px 4px;border-bottom:1px solid #EEF2F1;vertical-align:top;}
+  table.roster tr:last-child td{border-bottom:none;}
+  .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;flex-shrink:0;}
+  .name-blank{color:var(--ink-soft);font-style:italic;}
+  .meta{color:var(--ink-soft);font-size:10.5px;}
+  .leaflet-popup-content-wrapper{border-radius:10px;}
+  .leaflet-popup-content{margin:12px 14px;font-family:inherit;}
+  .popup h3{margin:0 0 2px;font-size:14px;color:var(--teal-deep);}
+  .popup .sub{font-size:11px;color:var(--ink-soft);margin-bottom:6px;}
+  .search-row{display:flex;gap:8px;margin-bottom:4px;}
+  .search-row input{flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;}
+  .search-row input:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  #load-state{padding:40px 0;text-align:center;color:var(--ink-soft);font-size:13px;}
+  #load-error{display:none;background:#FDECEC;border:1px solid #F3C6C6;border-radius:10px;padding:14px 16px;
+    font-size:12.5px;color:#7A2323;margin-bottom:14px;line-height:1.5;}
+  #load-error code{background:#fff;padding:1px 5px;border-radius:4px;}
+  #refresh-note{font-size:11px;color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="eyebrow">Sri Lanka Shared Services</div>
+      <h1>Where the roles landed</h1>
+      <p>Live view — reads <code>headcount_data.json</code>, refreshed automatically by Power Automate whenever the source Excel file is saved.</p>
+    </div>
+    <div class="totals">
+      <div class="stat"><div class="num" id="tot-total">–</div><div class="lab">Total roles</div></div>
+      <div class="stat"><div class="num" id="tot-countries">–</div><div class="lab">Countries</div></div>
+      <div class="stat"><div class="num" id="tot-progress">–</div><div class="lab">In progress</div></div>
+    </div>
+  </header>
+
+  <div id="load-error"></div>
+
+  <div class="layout" id="app" style="display:none;">
+    <div class="map-card">
+      <div id="map"></div>
+      <div class="map-foot">
+        <span id="refresh-note">—</span>
+        <div class="legend">
+          <span><span class="dot" style="background:#0F6B62"></span>Filled</span>
+          <span><span class="dot" style="background:#D98B2B"></span>Interviewing</span>
+          <span><span class="dot" style="background:#4C8C77"></span>Mixed</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card" id="detail-card">
+        <h2>Country detail</h2>
+        <div class="search-row">
+          <input id="search-box" type="text" placeholder="Search a name, role, or country…" />
+        </div>
+        <div id="detail-empty" class="hint">Click a bubble on the map, or search a name/role/country above.</div>
+        <div id="detail-body" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="load-state">Loading latest headcount data…</div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// CONFIG: point this at wherever Power Automate writes the JSON export.
+// If this HTML file and headcount_data.json sit in the SAME SharePoint
+// document library, a relative path works because the browser is already
+// authenticated to that site.
+// ---------------------------------------------------------------------------
+const DATA_URL = "./headcount_data.json";
+
+const CENTROIDS = {
+  "Sri Lanka": [7.87, 80.77], "Australia": [-25.27, 133.78], "Italy": [41.87, 12.57],
+  "Singapore": [1.35, 103.82], "Belgium": [50.85, 4.35], "Slovenia": [46.15, 14.99],
+  "Czech Republic": [49.82, 15.47], "Sweden": [60.13, 18.64], "Germany": [51.17, 10.45],
+  "United States": [39.5, -98.35], "France": [46.23, 2.21], "United Kingdom": [54.5, -3.2],
+  "Serbia": [44.02, 21.01], "Spain": [40.46, -3.75], "Turkey": [38.96, 35.24],
+  "South Africa": [-30.56, 22.94]
+};
+
+const STATUS_CODE = {
+  "candidate finalized": "F",
+  "candidate recruited": "R",
+  "interviews are in progress": "P"
+};
+const STATUS_COLOR = { R:"#0F6B62", F:"#0A4B45", P:"#D98B2B" };
+
+function radiusFor(n){ return 9 + Math.sqrt(n) * 7; }
+function statusCode(raw){
+  const key = (raw || "").toString().trim().toLowerCase();
+  return STATUS_CODE[key] || "P";
+}
+function fmtDate(v){
+  if (!v) return "";
+  const d = new Date(v);
+  if (isNaN(d)) return String(v);
+  return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
+function roleRowHtml(r, forPopup){
+  const meta = [];
+  if (r.empno) meta.push(r.empno);
+  if (r.rrno) meta.push('RR ' + r.rrno);
+  const dt = fmtDate(r.joindate);
+  if (dt) meta.push(dt);
+  const metaHtml = meta.length ? `<div class="meta">${meta.join(' · ')}</div>` : '';
+  if (forPopup){
+    return `<tr>
+      <td><span class="status-dot" style="background:${STATUS_COLOR[r.status]}"></span>${r.name || '<span class="name-blank">Open req.</span>'}</td>
+      <td>${r.position}</td>
+      <td>${r.operation}</td>
+    </tr>`;
+  }
+  return `<tr>
+    <td><span class="status-dot" style="background:${STATUS_COLOR[r.status]}"></span>${r.name || '<span class="name-blank">Open req.</span>'}</td>
+    <td>${r.position}<br><span style="color:var(--ink-soft);font-size:11px;">${r.operation}</span>${metaHtml}</td>
+  </tr>`;
+}
+
+function buildPopupHtml(name, data){
+  const filled = data.roles.filter(r => r.status !== "P").length;
+  const progress = data.roles.filter(r => r.status === "P").length;
+  const rows = data.roles.map(r => roleRowHtml(r, true)).join('');
+  return `<div class="popup">
+    <h3>${name}</h3>
+    <div class="sub">${data.roles.length} role${data.roles.length>1?'s':''} · ${filled} filled · ${progress} in progress</div>
+    <table class="roster"><thead><tr><th>Person</th><th>Role</th><th>Operation</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+  </div>`;
+}
+
+function renderDetail(name, data){
+  document.getElementById('detail-empty').style.display = 'none';
+  const body = document.getElementById('detail-body');
+  body.style.display = 'block';
+  const recruited = data.roles.filter(r => r.status === "R").length;
+  const finalized = data.roles.filter(r => r.status === "F").length;
+  const progress = data.roles.filter(r => r.status === "P").length;
+  const rows = data.roles.map(r => roleRowHtml(r, false)).join('');
+  body.innerHTML = `
+    <h3>${name}</h3>
+    <div class="sub">${data.roles.length} total role${data.roles.length>1?'s':''}</div>
+    <div class="breakdown">
+      <div class="chip"><b>${recruited}</b><span>Recruited</span></div>
+      <div class="chip"><b>${finalized}</b><span>Finalized</span></div>
+      <div class="chip"><b>${progress}</b><span>In progress</span></div>
+    </div>
+    <table class="roster"><thead><tr><th>Person / Role</th><th>Detail</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+  `;
+}
+
+async function init(){
+  let rows;
+  try {
+    const resp = await fetch(DATA_URL, { credentials: "include", cache: "no-store" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    rows = await resp.json();
+    if (!Array.isArray(rows)) throw new Error("Expected a JSON array of records");
+  } catch (err) {
+    document.getElementById('load-state').style.display = 'none';
+    const box = document.getElementById('load-error');
+    box.style.display = 'block';
+    box.innerHTML = `Couldn't load <code>${DATA_URL}</code> (${err.message}).<br>
+      Check that the Power Automate flow has run at least once, that the file exists at that path,
+      and that this page and the JSON file are in the same SharePoint library (or update
+      <code>DATA_URL</code> at the top of the script to the correct address).`;
+    return;
+  }
+
+  // group flat records by country
+  const byCountry = {};
+  let progressTotal = 0;
+  rows.forEach(r => {
+    const country = (r.Country || r.country || "Unclassified").trim();
+    const rec = {
+      name: (r.Name || r.name || "").trim(),
+      position: r.Position || r.position || "",
+      operation: r.Operation || r.operation || "",
+      status: statusCode(r.Status || r.status),
+      empno: r.EmployeeNumber || r.empno || "",
+      rrno: r.RRNo || r.rrno || "",
+      joindate: r.JoinDate || r.joindate || ""
+    };
+    if (rec.status === "P") progressTotal++;
+    if (!byCountry[country]) byCountry[country] = [];
+    byCountry[country].push(rec);
+  });
+
+  document.getElementById('tot-total').textContent = rows.length;
+  document.getElementById('tot-countries').textContent = Object.keys(byCountry).length;
+  document.getElementById('tot-progress').textContent = progressTotal;
+  document.getElementById('refresh-note').textContent =
+    `Loaded ${rows.length} roles at ${new Date().toLocaleString()}`;
+
+  document.getElementById('load-state').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+
+  const map = L.map('map', { scrollWheelZoom: true, minZoom: 1.4, maxZoom: 6 }).setView([20, 20], 1.9);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+  }).addTo(map);
+
+  const markers = {};
+  const COUNTRIES = {};
+  Object.entries(byCountry).forEach(([name, roles]) => {
+    const centroid = CENTROIDS[name];
+    if (!centroid) {
+      console.warn(`No map coordinates for country "${name}" — add it to CENTROIDS.`);
+      return;
+    }
+    const data = { lat: centroid[0], lng: centroid[1], roles };
+    COUNTRIES[name] = data;
+    const progress = roles.filter(r => r.status === "P").length;
+    const filled = roles.length - progress;
+    const color = progress === 0 ? "#0F6B62" : (filled === 0 ? "#D98B2B" : "#4C8C77");
+    const marker = L.circleMarker([data.lat, data.lng], {
+      radius: radiusFor(roles.length), fillColor: color, fillOpacity: 0.55,
+      color: color, weight: 1.5, opacity: 0.9
+    }).addTo(map);
+    marker.bindTooltip(`${name}: ${roles.length}`, { direction: 'top', offset: [0,-4] });
+    marker.bindPopup(buildPopupHtml(name, data), { maxWidth: 340 });
+    marker.on('click', () => renderDetail(name, data));
+    markers[name] = marker;
+  });
+
+  document.getElementById('search-box').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) return;
+    for (const [name, data] of Object.entries(COUNTRIES)) {
+      if (name.toLowerCase().includes(q)) {
+        map.setView([data.lat, data.lng], 4); renderDetail(name, data); markers[name].openPopup(); return;
+      }
+      for (const r of data.roles) {
+        const hay = (r.name + ' ' + r.position + ' ' + r.operation).toLowerCase();
+        if (hay.includes(q)) {
+          map.setView([data.lat, data.lng], 4); renderDetail(name, data); markers[name].openPopup(); return;
+        }
+      }
+    }
+  });
+}
+
+init();
+</script>
+</body>
+</html>
